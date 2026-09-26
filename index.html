@@ -1941,7 +1941,557 @@ function recalcPartsCost() {
     costEl.value = (labor + total).toFixed(2);
   }
 }
+// ============================================================
+// 补丁：所有缺失的自动计算 / 保存 / 删除函数
+// ============================================================
 
+// ----- Fuel Intake 自动填 + 计算 -----
+async function autoFillFuelIntakePreview() {
+  const fuelType = document.getElementById('fld_fuel_type')?.value;
+  const tankLocation = document.getElementById('fld_tank_location')?.value;
+  const currentAvgEl = document.getElementById('fld_current_avg_preview');
+  if (!fuelType || !tankLocation) {
+    if (currentAvgEl) currentAvgEl.value = '';
+    return recalcFuelIntakePreview();
+  }
+  const item = await getFuelItem(fuelType, tankLocation);
+  if (currentAvgEl) currentAvgEl.value = item ? Number(item.avg_unit_price || 0).toFixed(4) : '0.0000';
+  recalcFuelIntakePreview();
+}
+
+async function recalcFuelIntakePreview() {
+  const fuelType = document.getElementById('fld_fuel_type')?.value;
+  const tankLocation = document.getElementById('fld_tank_location')?.value;
+  const qty = parseFloat(document.getElementById('fld_intake_quantity')?.value) || 0;
+  const price = parseFloat(document.getElementById('fld_unit_price')?.value) || 0;
+  const totalEl = document.getElementById('fld_total_value');
+  if (totalEl) totalEl.value = (qty * price).toFixed(2);
+  const newAvgEl = document.getElementById('fld_new_avg_preview');
+  const devEl = document.getElementById('fld_deviation_preview');
+  if (!fuelType || !tankLocation || qty <= 0) {
+    if (newAvgEl) newAvgEl.value = '';
+    if (devEl) devEl.value = '';
+    return;
+  }
+  const { newAvg, deviation } = await previewFuelNewAvg(fuelType, tankLocation, qty, price);
+  if (newAvgEl) newAvgEl.value = newAvg.toFixed(4);
+  if (devEl) devEl.value = deviation.toFixed(2);
+}
+
+// ----- Fuel Output 自动填 + 计算 -----
+async function autoFillPreviousReading() {
+  const eqId = document.getElementById('fld_equipment_id')?.value;
+  if (!eqId) return;
+  const { data } = await sb.from('fuel_output').select('*').eq('equipment_id', eqId).order('date_time', {ascending: false}).limit(1);
+  const prevReading = document.getElementById('fld_previous_reading');
+  if (data && data.length > 0) {
+    if (prevReading) prevReading.value = data[0].current_reading ?? '';
+  } else {
+    if (prevReading) prevReading.value = '';
+  }
+  recalcFuelOutput();
+}
+
+async function autoFillFuelOutputPrice() {
+  const fuelType = document.getElementById('fld_fuel_type')?.value;
+  const tankLocation = document.getElementById('fld_tank_location')?.value;
+  const sysPriceEl = document.getElementById('fld_system_unit_price');
+  const unitPriceEl = document.getElementById('fld_unit_price');
+  if (!fuelType || !tankLocation) {
+    if (sysPriceEl) sysPriceEl.value = '';
+    if (unitPriceEl) unitPriceEl.value = '';
+    return;
+  }
+  const item = await getFuelItem(fuelType, tankLocation);
+  const avg = Number(item?.avg_unit_price) || 0;
+  if (sysPriceEl) sysPriceEl.value = avg.toFixed(4);
+  if (unitPriceEl) unitPriceEl.value = avg.toFixed(4);
+  recalcFuelOutput();
+}
+
+function recalcFuelOutput() {
+  const prevReading = parseFloat(document.getElementById('fld_previous_reading')?.value) || 0;
+  const currReading = parseFloat(document.getElementById('fld_current_reading')?.value) || 0;
+  const litersAdded = parseFloat(document.getElementById('fld_liters_added')?.value) || 0;
+  const unitPrice = parseFloat(document.getElementById('fld_unit_price')?.value) || 0;
+
+  const fuelUsed = litersAdded;
+  const deltaReading = currReading - prevReading;
+  const consumptionRate = deltaReading > 0 ? (litersAdded / deltaReading) : 0;
+  const totalValue = litersAdded * unitPrice;
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v.toFixed(2); };
+  setVal('fld_fuel_used', fuelUsed);
+  setVal('fld_consumption_rate', consumptionRate);
+  setVal('fld_total_value', totalValue);
+}
+
+// ----- Inputs Intake / Output 自动填 + 计算 -----
+async function autoFillIntakePreview() {
+  const inputId = document.getElementById('fld_input_id')?.value;
+  const avgEl = document.getElementById('fld_current_avg_preview');
+  const unitEl = document.getElementById('fld_unit_display');
+  if (!inputId) {
+    if (avgEl) avgEl.value = '';
+    if (unitEl) unitEl.value = '';
+    return recalcIntakePreview();
+  }
+  const item = linkCache[`inputs_inventory_${inputId}`];
+  if (item) {
+    if (avgEl) avgEl.value = Number(item.avg_unit_price || 0).toFixed(4);
+    if (unitEl) {
+      const unitVal = item.unit;
+      let unitLabel = unitVal || '';
+      const found = getLookupOptions('unit').find(o => o.value === unitVal);
+      if (found) unitLabel = found.label;
+      unitEl.value = unitLabel;
+    }
+  }
+  recalcIntakePreview();
+}
+
+async function recalcIntakePreview() {
+  const inputId = document.getElementById('fld_input_id')?.value;
+  const qty = parseFloat(document.getElementById('fld_intake_quantity')?.value) || 0;
+  const price = parseFloat(document.getElementById('fld_unit_price')?.value) || 0;
+  const totalEl = document.getElementById('fld_total_value');
+  if (totalEl) totalEl.value = (qty * price).toFixed(2);
+  const newAvgEl = document.getElementById('fld_new_avg_preview');
+  const devEl = document.getElementById('fld_deviation_preview');
+  if (!inputId || qty <= 0) {
+    if (newAvgEl) newAvgEl.value = '';
+    if (devEl) devEl.value = '';
+    return;
+  }
+  const { newAvg, deviation } = await previewNewAvgPrice('inputs_inventory', inputId, qty, price);
+  if (newAvgEl) newAvgEl.value = newAvg.toFixed(4);
+  if (devEl) devEl.value = deviation.toFixed(2);
+}
+
+async function autoFillInputUnit() {
+  const inputId = document.getElementById('fld_input_id')?.value;
+  const unitEl = document.getElementById('fld_unit_display');
+  if (!inputId || !unitEl) return;
+  const item = linkCache[`inputs_inventory_${inputId}`];
+  if (item) {
+    const unitVal = item.unit;
+    let unitLabel = unitVal || '';
+    const found = getLookupOptions('unit').find(o => o.value === unitVal);
+    if (found) unitLabel = found.label;
+    unitEl.value = unitLabel;
+  }
+}
+
+function filterOutputInputs() { autoFillInputUnit(); }
+
+async function recalcExitCost() {
+  const inputId = document.getElementById('fld_input_id')?.value;
+  const qty = parseFloat(document.getElementById('fld_actual_output_quantity')?.value) || 0;
+  const unitPriceEl = document.getElementById('fld_unit_price');
+  const sysPriceEl = document.getElementById('fld_system_unit_price');
+  const totalEl = document.getElementById('fld_total_value');
+  if (!inputId) {
+    if (unitPriceEl) unitPriceEl.value = '';
+    if (sysPriceEl) sysPriceEl.value = '';
+    if (totalEl) totalEl.value = '';
+    return;
+  }
+  const item = linkCache[`inputs_inventory_${inputId}`];
+  const avg = Number(item?.avg_unit_price) || 0;
+  if (sysPriceEl) sysPriceEl.value = avg.toFixed(4);
+  if (unitPriceEl) unitPriceEl.value = avg.toFixed(4);
+  if (totalEl) totalEl.value = (qty * avg).toFixed(2);
+}
+
+// ----- Work Order Execution 自动填 + 计算 -----
+async function autoFillFromWorkOrder() {
+  const taskId = document.getElementById('fld_task_id')?.value;
+  if (!taskId) return;
+  const { data: wo } = await sb.from('work_orders').select('*').eq('id', taskId).single();
+  if (!wo) return;
+  const setVal = (col, val) => { const el = document.getElementById('fld_' + col); if (el) { if (el.tomselect) el.tomselect.setValue(val); else el.value = val; } };
+  setVal('service_type_actual', wo.planned_service_type || '');
+  setVal('field_id', wo.field_id || '');
+  setVal('staff_id', wo.staff_id || '');
+  recalcWorkOrderExecution();
+}
+
+async function onFuelEquipmentChange() {
+  const eqId = document.getElementById('fld_fuel_equipment_id')?.value;
+  const capEl = document.getElementById('fld_tank_capacity_display');
+  if (!eqId || !capEl) return;
+  const item = linkCache[`equipment_${eqId}`];
+  if (item) capEl.value = Number(item.tank_capacity) || 0;
+  recalcWorkOrderExecution();
+}
+
+function onFuelPctChange(col) {
+  const el = document.getElementById('fld_' + col);
+  const pctEl = document.getElementById('fld_' + col + '_pct');
+  if (el && pctEl) pctEl.textContent = (el.value || 0) + '%';
+  recalcWorkOrderExecution();
+}
+
+function recalcWorkOrderExecution() {
+  const capacity = parseFloat(document.getElementById('fld_tank_capacity_display')?.value) || 0;
+  const beforePct = parseFloat(document.getElementById('fld_fuel_before_pct')?.value) || 0;
+  const afterPct = parseFloat(document.getElementById('fld_fuel_after_pct')?.value) || 0;
+  const beforeWorkEl = document.getElementById('fld_fuel_before_work');
+  const afterWorkEl = document.getElementById('fld_fuel_after_work');
+  const consumedEl = document.getElementById('fld_fuel_consumed');
+  const perHourEl = document.getElementById('fld_fuel_per_hour');
+  const beforeL = capacity * beforePct / 100;
+  const afterL = capacity * afterPct / 100;
+  if (beforeWorkEl) beforeWorkEl.value = beforeL.toFixed(2);
+  if (afterWorkEl) afterWorkEl.value = afterL.toFixed(2);
+  const refueling = parseFloat(document.getElementById('fld_refueling_l')?.value) || 0;
+  const consumed = beforeL + refueling - afterL;
+  if (consumedEl) consumedEl.value = consumed.toFixed(2);
+  const startTime = document.getElementById('fld_start_time__date')?.value;
+  const startTimeT = document.getElementById('fld_start_time__time')?.value;
+  const endTime = document.getElementById('fld_end_time__date')?.value;
+  const endTimeT = document.getElementById('fld_end_time__time')?.value;
+  if (startTime && endTime) {
+    const startISO = mergeDatetime(startTime, startTimeT || '00:00');
+    const endISO = mergeDatetime(endTime, endTimeT || '00:00');
+    if (startISO && endISO) {
+      const hours = (new Date(endISO) - new Date(startISO)) / 3600000;
+      if (perHourEl) perHourEl.value = hours > 0 ? (consumed / hours).toFixed(2) : '0';
+    }
+  } else {
+    if (perHourEl) perHourEl.value = '';
+  }
+}
+
+async function autoFillRefuelingFromFuelOutput() {
+  const eqId = document.getElementById('fld_fuel_equipment_id')?.value;
+  const dateEl = document.getElementById('fld_start_time__date');
+  if (!eqId || !dateEl || !dateEl.value) { toast('Select equipment and start date first'); return; }
+  const iso = ddmmyyyyToISO(dateEl.value);
+  if (!iso) return;
+  const { data } = await sb.from('fuel_output').select('liters_added, date_time')
+    .eq('equipment_id', eqId).gte('date_time', iso + 'T00:00:00').lte('date_time', iso + 'T23:59:59');
+  const total = (data || []).reduce((s,r) => s + (Number(r.liters_added) || 0), 0);
+  const refuelEl = document.getElementById('fld_refueling_l');
+  if (refuelEl) refuelEl.value = total.toFixed(2);
+  recalcWorkOrderExecution();
+  toast(`Synced: ${total.toFixed(2)} L`);
+}
+
+// ----- Parts Intake / Output 自动填 + 计算 -----
+async function autoFillPartsIntakePreview() {
+  const partId = document.getElementById('fld_part_id')?.value;
+  const avgEl = document.getElementById('fld_current_avg_preview');
+  const unitEl = document.getElementById('fld_unit_display');
+  if (!partId) {
+    if (avgEl) avgEl.value = '';
+    if (unitEl) unitEl.value = '';
+    return recalcPartsIntakePreview();
+  }
+  const item = linkCache[`parts_inventory_${partId}`];
+  if (item) {
+    if (avgEl) avgEl.value = Number(item.avg_unit_price || 0).toFixed(4);
+    if (unitEl) {
+      const unitVal = item.unit;
+      let unitLabel = unitVal || '';
+      const found = getLookupOptions('unit').find(o => o.value === unitVal);
+      if (found) unitLabel = found.label;
+      unitEl.value = unitLabel;
+    }
+  }
+  recalcPartsIntakePreview();
+}
+
+async function recalcPartsIntakePreview() {
+  const partId = document.getElementById('fld_part_id')?.value;
+  const qty = parseFloat(document.getElementById('fld_intake_quantity')?.value) || 0;
+  const price = parseFloat(document.getElementById('fld_unit_price')?.value) || 0;
+  const totalEl = document.getElementById('fld_total_value');
+  if (totalEl) totalEl.value = (qty * price).toFixed(2);
+  const newAvgEl = document.getElementById('fld_new_avg_preview');
+  const devEl = document.getElementById('fld_deviation_preview');
+  if (!partId || qty <= 0) {
+    if (newAvgEl) newAvgEl.value = '';
+    if (devEl) devEl.value = '';
+    return;
+  }
+  const { newAvg, deviation } = await previewNewAvgPrice('parts_inventory', partId, qty, price);
+  if (newAvgEl) newAvgEl.value = newAvg.toFixed(4);
+  if (devEl) devEl.value = deviation.toFixed(2);
+}
+
+async function autoFillPartsOutput() {
+  const partId = document.getElementById('fld_part_id')?.value;
+  const unitEl = document.getElementById('fld_unit_display');
+  const locEl = document.getElementById('fld_location_display');
+  const sysPriceEl = document.getElementById('fld_system_unit_price');
+  const unitPriceEl = document.getElementById('fld_unit_price');
+  if (!partId) {
+    if (unitEl) unitEl.value = '';
+    if (locEl) locEl.value = '';
+    if (sysPriceEl) sysPriceEl.value = '';
+    if (unitPriceEl) unitPriceEl.value = '';
+    return recalcPartsOutputCost();
+  }
+  const item = linkCache[`parts_inventory_${partId}`];
+  if (item) {
+    if (unitEl) {
+      const unitVal = item.unit;
+      let unitLabel = unitVal || '';
+      const found = getLookupOptions('unit').find(o => o.value === unitVal);
+      if (found) unitLabel = found.label;
+      unitEl.value = unitLabel;
+    }
+    if (locEl) locEl.value = [item.warehouse_zone, item.bin_location].filter(Boolean).join(' / ');
+    const avg = Number(item.avg_unit_price) || 0;
+    if (sysPriceEl) sysPriceEl.value = avg.toFixed(4);
+    if (unitPriceEl) unitPriceEl.value = avg.toFixed(4);
+  }
+  recalcPartsOutputCost();
+}
+
+async function recalcPartsOutputCost() {
+  const partId = document.getElementById('fld_part_id')?.value;
+  const qty = parseFloat(document.getElementById('fld_actual_output_quantity')?.value) || 0;
+  const unitPriceEl = document.getElementById('fld_unit_price');
+  const totalEl = document.getElementById('fld_total_value');
+  if (!partId) {
+    if (totalEl) totalEl.value = '';
+    return;
+  }
+  const item = linkCache[`parts_inventory_${partId}`];
+  const avg = Number(item?.avg_unit_price) || 0;
+  if (unitPriceEl) unitPriceEl.value = avg.toFixed(4);
+  if (totalEl) totalEl.value = (qty * avg).toFixed(2);
+}
+
+// ============================================================
+// SAVE / DELETE
+// ============================================================
+async function revertInventoryEffect(key, oldRecord) {
+  if (!oldRecord) return;
+  try {
+    if (key === 'fuel_intake') {
+      const item = await getFuelItem(oldRecord.fuel_type, oldRecord.tank_location);
+      if (item) {
+        const oldStock = Number(item.current_stock) || 0;
+        const qty = Number(oldRecord.intake_quantity) || 0;
+        await sb.from('fuel_inventory').update({ current_stock: oldStock - qty }).eq('id', item.id);
+      }
+    } else if (key === 'fuel_output') {
+      const item = await getFuelItem(oldRecord.fuel_type, oldRecord.tank_location);
+      if (item) {
+        const newStock = (Number(item.current_stock) || 0) + (Number(oldRecord.liters_added) || 0);
+        await sb.from('fuel_inventory').update({ current_stock: newStock }).eq('id', item.id);
+      }
+    } else if (key === 'inputs_intake' || key === 'inputs_output' || key === 'inventory_movements') {
+      const { data: item } = await sb.from('inputs_inventory').select('current_stock').eq('id', oldRecord.input_id).single();
+      if (item) {
+        let newStock = Number(item.current_stock) || 0;
+        if (key === 'inputs_intake') newStock -= Number(oldRecord.intake_quantity) || 0;
+        else if (key === 'inputs_output') newStock += Number(oldRecord.actual_output_quantity) || 0;
+        else if (key === 'inventory_movements') newStock -= Number(oldRecord.quantity) || 0;
+        await sb.from('inputs_inventory').update({ current_stock: newStock }).eq('id', oldRecord.input_id);
+      }
+    } else if (key === 'parts_intake' || key === 'parts_output' || key === 'parts_movements') {
+      const { data: item } = await sb.from('parts_inventory').select('current_stock').eq('id', oldRecord.part_id).single();
+      if (item) {
+        let newStock = Number(item.current_stock) || 0;
+        if (key === 'parts_intake') newStock -= Number(oldRecord.intake_quantity) || 0;
+        else if (key === 'parts_output') newStock += Number(oldRecord.actual_output_quantity) || 0;
+        else if (key === 'parts_movements') newStock -= Number(oldRecord.quantity) || 0;
+        await sb.from('parts_inventory').update({ current_stock: newStock }).eq('id', oldRecord.part_id);
+      }
+    }
+  } catch (e) { console.warn('revertInventoryEffect failed:', e); }
+}
+
+async function applyInventoryEffect(key, record) {
+  if (key === 'fuel_intake') {
+    await applyFuelIntakeToInventory(record.fuel_type, record.tank_location, record.intake_quantity, record.unit_price);
+  } else if (key === 'fuel_output') {
+    await applyFuelOutputToInventory(record.fuel_type, record.tank_location, record.liters_added);
+  } else if (key === 'inputs_intake') {
+    await applyIntakeToInventory('inputs_inventory', record.input_id, record.intake_quantity, record.unit_price);
+  } else if (key === 'inputs_output') {
+    await applyOutputToInventory('inputs_inventory', record.input_id, record.actual_output_quantity);
+  } else if (key === 'inventory_movements') {
+    await applyMovementToInventory('inputs_inventory', record.input_id, record.quantity);
+  } else if (key === 'parts_intake') {
+    await applyIntakeToInventory('parts_inventory', record.part_id, record.intake_quantity, record.unit_price);
+  } else if (key === 'parts_output') {
+    await applyOutputToInventory('parts_inventory', record.part_id, record.actual_output_quantity);
+  } else if (key === 'parts_movements') {
+    await applyMovementToInventory('parts_inventory', record.part_id, record.quantity);
+  }
+}
+
+async function checkApprovalNeeded(key, record) {
+  if (key !== 'fuel_intake' && key !== 'inputs_intake' && key !== 'parts_intake') return { needed: false };
+  let oldAvg = 0, newAvg = 0, oldStock = 0, qty = 0, price = 0;
+  if (key === 'fuel_intake') {
+    const item = await getFuelItem(record.fuel_type, record.tank_location);
+    oldAvg = Number(item?.avg_unit_price) || 0;
+    oldStock = Number(item?.current_stock) || 0;
+  } else if (key === 'inputs_intake') {
+    const { data: item } = await sb.from('inputs_inventory').select('current_stock, avg_unit_price').eq('id', record.input_id).single();
+    oldAvg = Number(item?.avg_unit_price) || 0;
+    oldStock = Number(item?.current_stock) || 0;
+  } else if (key === 'parts_intake') {
+    const { data: item } = await sb.from('parts_inventory').select('current_stock, avg_unit_price').eq('id', record.part_id).single();
+    oldAvg = Number(item?.avg_unit_price) || 0;
+    oldStock = Number(item?.current_stock) || 0;
+  }
+  qty = Number(record.intake_quantity) || 0;
+  price = Number(record.unit_price) || 0;
+  const newStock = oldStock + qty;
+  newAvg = newStock > 0 ? ((oldStock * oldAvg) + (qty * price)) / newStock : 0;
+  const deviation = oldAvg > 0 ? ((newAvg - oldAvg) / oldAvg) * 100 : 0;
+  return { needed: Math.abs(deviation) > PRICE_DEVIATION_THRESHOLD, deviation, oldAvg, newAvg };
+}
+
+async function checkStockShortage(key, record) {
+  if (key !== 'fuel_output' && key !== 'inputs_output' && key !== 'parts_output') return { shortage: false };
+  let currentStock = 0, requiredQty = 0, itemName = '';
+  if (key === 'fuel_output') {
+    const item = await getFuelItem(record.fuel_type, record.tank_location);
+    currentStock = Number(item?.current_stock) || 0;
+    requiredQty = Number(record.liters_added) || 0;
+    itemName = `${record.fuel_type} (${record.tank_location})`;
+  } else if (key === 'inputs_output') {
+    const { data: item } = await sb.from('inputs_inventory').select('input_name, current_stock').eq('id', record.input_id).single();
+    currentStock = Number(item?.current_stock) || 0;
+    requiredQty = Number(record.actual_output_quantity) || 0;
+    itemName = item?.input_name || 'Input';
+  } else if (key === 'parts_output') {
+    const { data: item } = await sb.from('parts_inventory').select('part_name, current_stock').eq('id', record.part_id).single();
+    currentStock = Number(item?.current_stock) || 0;
+    requiredQty = Number(record.actual_output_quantity) || 0;
+    itemName = item?.part_name || 'Part';
+  }
+  return { shortage: currentStock - requiredQty < 0, currentStock, requiredQty, itemName };
+}
+
+async function saveRecord(key, editId) {
+  const cfg = TABLES[key];
+  const record = {};
+  const errors = [];
+  for (const f of cfg.fields) {
+    if (f.previewOnly) continue;
+    const id = 'fld_' + f.col;
+    let val;
+    if (f.type === 'multilink' || f.type === 'multiselect') {
+      const container = document.getElementById(id);
+      if (!container) continue;
+      val = Array.from(container.querySelectorAll('input:checked')).map(c => f.type === 'multilink' ? parseInt(c.value) : c.value);
+    } else if (f.type === 'datetime') {
+      const dateEl = document.getElementById(id + '__date');
+      const timeEl = document.getElementById(id + '__time');
+      val = (dateEl && dateEl.value) ? mergeDatetime(dateEl.value, timeEl ? timeEl.value : '00:00') : null;
+    } else if (f.type === 'range') {
+      const el = document.getElementById(id);
+      val = el ? parseFloat(el.value) : null;
+    } else {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      val = el.value;
+      if (f.type === 'number') val = val === '' ? null : parseFloat(val);
+      else if (f.type === 'link') val = val === '' ? null : parseInt(val);
+      else if (f.type === 'date') val = val ? ddmmyyyyToISO(val) : null;
+      else if (val === '') val = null;
+    }
+    if (f.required && (val === null || val === undefined || val === '' || (Array.isArray(val) && val.length === 0))) {
+      errors.push(f.label);
+    }
+    record[f.col] = val;
+  }
+  if (errors.length > 0) { toast('Required fields: ' + errors.join(', '), 5000); return; }
+  record.created_by = currentUser.id;
+
+  let oldRecord = null;
+  if (editId) {
+    const { data } = await sb.from(key).select('*').eq('id', editId).single();
+    oldRecord = data;
+  }
+
+  const approval = await checkApprovalNeeded(key, record);
+  if (approval.needed) {
+    const result = await askAdminApproval(approval.deviation, approval.oldAvg, approval.newAvg);
+    if (!result.approved) { toast('Operation cancelled'); return; }
+    record.price_deviation_pct = Number(approval.deviation.toFixed(2));
+    record.approved_by = result.adminId;
+    record.approved_at = new Date().toISOString();
+    record.approval_note = result.note || null;
+  }
+
+  const shortage = await checkStockShortage(key, record);
+  if (shortage.shortage) {
+    const ok = await askStockShortage(shortage.currentStock, shortage.requiredQty, shortage.itemName);
+    if (!ok) { toast('Operation cancelled'); return; }
+  }
+
+  if (editId && oldRecord) await revertInventoryEffect(key, oldRecord);
+
+  let recordId = editId;
+  if (editId) {
+    const { error } = await sb.from(key).update(record).eq('id', editId);
+    if (error) { toast('Error: ' + error.message); return; }
+    toast('Record updated');
+  } else {
+    const { data, error } = await sb.from(key).insert(record).select('id').single();
+    if (error) { toast('Error: ' + error.message); return; }
+    recordId = data.id;
+    toast('Record saved');
+  }
+
+  await applyInventoryEffect(key, record);
+
+  if (cfg.hasPlannedInputs) {
+    await sb.from('inputs_per_work_order').delete().eq('work_order_id', recordId);
+    const rows = document.querySelectorAll('#plannedInputsRows .planned-row');
+    const planned = [];
+    rows.forEach(r => {
+      const inputId = r.querySelector('.planned-input-select')?.value;
+      const qty = parseFloat(r.querySelector('.planned-qty')?.value);
+      if (inputId && !isNaN(qty)) {
+        planned.push({ work_order_id: recordId, input_id: parseInt(inputId), quantity_used: qty, unit: r.querySelector('.planned-unit')?.value || null });
+      }
+    });
+    if (planned.length > 0) await sb.from('inputs_per_work_order').insert(planned);
+  }
+
+  if (cfg.hasPartsUsed) {
+    await sb.from('maintenance_parts').delete().eq('maintenance_log_id', recordId);
+    const rows = document.querySelectorAll('#partsUsedRows .planned-row');
+    const parts = [];
+    rows.forEach(r => {
+      const partId = r.querySelector('.planned-input-select')?.value;
+      const qty = parseFloat(r.querySelector('.planned-qty')?.value);
+      const price = parseFloat(r.querySelector('.planned-price')?.value) || 0;
+      if (partId && !isNaN(qty)) {
+        parts.push({ maintenance_log_id: recordId, part_id: parseInt(partId), quantity_used: qty, unit: r.querySelector('.planned-unit')?.value || null, system_unit_price: price, total_value: qty * price });
+      }
+    });
+    if (parts.length > 0) await sb.from('maintenance_parts').insert(parts);
+  }
+
+  openModule(key);
+}
+
+async function deleteRecord(key, id) {
+  if (!confirm('Delete this record?')) return;
+  const cfg = TABLES[key];
+  let record = null;
+  if (cfg) {
+    const { data } = await sb.from(key).select('*').eq('id', id).single();
+    record = data;
+  }
+  if (record) await revertInventoryEffect(key, record);
+  const { error } = await sb.from(key).delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  toast('Record deleted');
+  openModule(key);
+}
 function escapeHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
