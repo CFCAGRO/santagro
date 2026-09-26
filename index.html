@@ -701,8 +701,8 @@ function hasAccess(key) {
 // INIT
 // ============================================================
 function init() {
-  const url = EMBEDDED_URL || localStorage.getItem('sb_url');
-  const key = EMBEDDED_KEY || localStorage.getItem('sb_key');
+  const url = EMBEDDED_URL || localStorage.getItem('santagro_sb_url');
+  const key = EMBEDDED_KEY || localStorage.getItem('santagro_sb_key');
   if (url && key) {
     sb = supabase.createClient(url, key);
     showLogin();
@@ -715,8 +715,8 @@ function saveConfig() {
   const url = document.getElementById('sbUrl').value.trim();
   const key = document.getElementById('sbKey').value.trim();
   if (!url || !key) { toast('Please fill in both fields'); return; }
-  localStorage.setItem('sb_url', url);
-  localStorage.setItem('sb_key', key);
+  localStorage.setItem('santagro_sb_url', url);
+  localStorage.setItem('santagro_sb_key', key);
   sb = supabase.createClient(url, key);
   document.getElementById('configScreen').style.display = 'none';
   showLogin();
@@ -748,7 +748,7 @@ async function doLogin() {
     .single();
   if (error || !data) { toast('Invalid credentials'); return; }
   currentUser = data;
-  localStorage.setItem('session', JSON.stringify({
+  localStorage.setItem('santagro_session', JSON.stringify({
     id: data.id,
     username: data.username,
     role: data.role,
@@ -763,7 +763,7 @@ async function doLogin() {
 }
 
 function logout() {
-  localStorage.removeItem('session');
+  localStorage.removeItem('santagro_session');
   currentUser = null;
   document.getElementById('mainApp').style.display = 'none';
   showLogin();
@@ -2116,14 +2116,13 @@ async function deleteUser(id) {
   toast('User deleted');
   showUserManagement();
 }
-
 // ============================================================
 // INIT
 // ============================================================
-const savedSession = localStorage.getItem('session');
+const savedSession = localStorage.getItem('santagro_session');
 if (savedSession) {
-  const url = EMBEDDED_URL || localStorage.getItem('sb_url');
-  const key = EMBEDDED_KEY || localStorage.getItem('sb_key');
+  const url = EMBEDDED_URL || localStorage.getItem('santagro_sb_url');
+  const key = EMBEDDED_KEY || localStorage.getItem('santagro_sb_key');
   if (url && key) {
     sb = supabase.createClient(url, key);
     currentUser = JSON.parse(savedSession);
