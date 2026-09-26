@@ -317,24 +317,28 @@ const TABLES = {
       {col:"approval_note",label:"Approval Note",type:"textarea",readonly:true,previewOnly:true},
     ]
   },
-  fuel_output: {
+    fuel_output: {
     label: "Fuel Output", icon: "🚜", cat: "Fuel", group: "Fuel",
     desc: "Record fuel consumption",
     defaultSort: { column: "date_time", ascending: false },
     fields: [
       {col:"equipment_id",label:"Equipment",type:"link",table:"equipment",showField:"equipment_name",onchange:"autoFillPreviousReading",required:true,section:"1. Equipment & Refuel"},
       {col:"fuel_type",label:"Fuel Type",type:"lookup",lookupCategory:"fuel_type",required:true,onchange:"autoFillFuelOutputPrice"},
-      {col:"reading_type",label:"Reading Type",type:"lookup",lookupCategory:"reading_type",required:true},
       {col:"tank_location",label:"Tank Location",type:"select",opts:TANK_LOCATIONS,required:true,onchange:"autoFillFuelOutputPrice"},
-      {col:"previous_reading",label:"Previous Meter Reading (auto)",type:"number",readonly:true,section:"2. Meter Reading"},
+
+      {col:"reading_type",label:"Reading Type",type:"lookup",lookupCategory:"reading_type",required:true,section:"2. Meter Reading"},
+      {col:"previous_reading",label:"Previous Meter Reading (auto)",type:"number",readonly:true},
       {col:"current_reading",label:"Current Meter Reading",type:"number",recalc:true,required:true},
+
       {col:"fueling_method",label:"Fueling Method",type:"select",opts:FUELING_METHODS,required:true,section:"3. Refueling Source"},
       {col:"liters_added",label:"Liters Added (L)",type:"number",required:true,recalc:true},
+
       {col:"fuel_used",label:"Fuel Actually Consumed (L) — auto",type:"number",readonly:true,section:"4. Auto-Computed"},
       {col:"consumption_rate",label:"Consumption Rate — auto",type:"number",readonly:true},
       {col:"system_unit_price",label:"System Unit Price (L) — auto",type:"number",readonly:true,previewOnly:true},
       {col:"unit_price",label:"Unit Price (locked)",type:"number",readonly:true,previewOnly:true},
       {col:"total_value",label:"Output Value (auto) — auto",type:"number",readonly:true,previewOnly:true},
+
       {col:"date_time",label:"Date & Time",type:"datetime",required:true,section:"5. Details"},
       {col:"staff_id",label:"Responsible Person",type:"link",table:"staff",showField:"staff_name",required:true},
       {col:"observations",label:"Observations",type:"textarea"},
