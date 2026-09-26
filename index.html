@@ -1947,7 +1947,176 @@ function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 // ============================================================
-// USER MANAGEMENT (三态权限 + 三态下拉)
+// ============================================================
+// INVENTORY DASHBOARD（Fuel / Inputs）
+// ============================================================
+async function showInventoryDashboard(key) {
+  const content = document.getElementById('content');
+  const cfg = TABLES[key];
+  let html = `<div class="section-header">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <h3>${cfg.label}</h3>
+  </div>`;
+
+  if (cfg.isInventoryDashboard === 'fuel') {
+    const { data: inv } = await sb.from('fuel_inventory').select('*');
+    const { data: intake } = await sb.from('fuel_intake').select('fuel_type,tank_location,intake_quantity');
+    const { data: output } = await sb.from('fuel_output').select('fuel_type,tank_location,liters_added');
+    html += `<div class="form-container">`;
+    for (const item of (inv || [])) {
+      const totalIn = (intake || []).filter(r => r.fuel_type === item.fuel_type && r.tank_location === item.tank_location).reduce((s,r) => s + (Number(r.intake_quantity) || 0), 0);
+      const totalOut = (output || []).filter(r => r.fuel_type === item.fuel_type && r.tank_location === item.tank_location).reduce((s,r) => s + (Number(r.liters_added) || 0), 0);
+      const current = (Number(item.initial_stock) || 0) + totalIn - totalOut;
+      const status = current <= 0 ? 'out' : current <= (Number(item.minimum_stock) || 0) ? 'low' : 'ok';
+      const badgeClass = status === 'out' ? 'inv-out' : status === 'low' ? 'inv-low' : 'inv-ok';
+      const badgeText = status === 'out' ? 'OUT OF STOCK' : status === 'low' ? 'LOW STOCK' : 'OK';
+      html += `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:16px">${item.fuel_type} — ${item.tank_location}</strong>
+          <span class="inv-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="inv-row"><span class="label">Code</span><span class="value">${item.fuel_code || '-'}</span></div>
+        <div class="inv-row"><span class="label">Initial Stock</span><span class="value">${Number(item.initial_stock || 0).toFixed(1)} ${item.unit || 'L'}</span></div>
+        <div class="inv-row"><span class="label">Total In</span><span class="value" style="color:#2e7d32">+${totalIn.toFixed(1)} ${item.unit || 'L'}</span></div>
+        <div class="inv-row"><span class="label">Total Out</span><span class="value" style="color:#c62828">-${totalOut.toFixed(1)} ${item.unit || 'L'}</span></div>
+        <div class="inv-row" style="border-top:2px solid #333;padding-top:10px;margin-top:6px">
+          <span class="label" style="font-weight:700">Current Stock</span>
+          <span class="value" style="font-size:18px">${current.toFixed(1)} ${item.unit || 'L'}</span>
+        </div>
+        <div class="inv-row"><span class="label">Minimum Stock</span><span class="value">${Number(item.minimum_stock || 0).toFixed(1)} ${item.unit || 'L'}</span></div>
+        <div class="inv-row"><span class="label">Avg Price</span><span class="value">${Number(item.avg_unit_price || 0).toFixed(4)}</span></div>
+      </div>`;
+    }
+    html += `</div>`;
+  } else if (cfg.isInventoryDashboard === 'inputs') {
+    const { data: inv } = await sb.from('inputs_inventory').select('*');
+    const { data: intake } = await sb.from('inputs_intake').select('input_id,intake_quantity');
+    const { data: movements } = await sb.from('inventory_movements').select('input_id,quantity');
+    const { data: output } = await sb.from('inputs_output').select('input_id,actual_output_quantity');
+    html += `<div class="form-container">`;
+    for (const item of (inv || [])) {
+      const totalIn = (intake || []).filter(r => r.input_id === item.id).reduce((s,r) => s + (Number(r.intake_quantity) || 0), 0);
+      const totalOut = (output || []).filter(r => r.input_id === item.id).reduce((s,r) => s + (Number(r.actual_output_quantity) || 0), 0);
+      const moveAdj = (movements || []).filter(r => r.input_id === item.id).reduce((s,r) => s + (Number(r.quantity) || 0), 0);
+      const current = (Number(item.opening_stock) || 0) + totalIn + moveAdj - totalOut;
+      const status = current <= 0 ? 'out' : current <= (Number(item.minimum_stock) || 0) ? 'low' : 'ok';
+      const badgeClass = status === 'out' ? 'inv-out' : status === 'low' ? 'inv-low' : 'inv-ok';
+      const badgeText = status === 'out' ? 'OUT OF STOCK' : status === 'low' ? 'LOW STOCK' : 'OK';
+      html += `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:16px">${item.input_name}</strong>
+          <span class="inv-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="inv-row"><span class="label">Code</span><span class="value">${item.input_code || '-'}</span></div>
+        <div class="inv-row"><span class="label">Opening Stock</span><span class="value">${Number(item.opening_stock || 0).toFixed(1)}</span></div>
+        <div class="inv-row"><span class="label">Total In</span><span class="value" style="color:#2e7d32">+${totalIn.toFixed(1)}</span></div>
+        <div class="inv-row"><span class="label">Total Out</span><span class="value" style="color:#c62828">-${totalOut.toFixed(1)}</span></div>
+        <div class="inv-row"><span class="label">Adjustments</span><span class="value">${moveAdj >= 0 ? '+' : ''}${moveAdj.toFixed(1)}</span></div>
+        <div class="inv-row" style="border-top:2px solid #333;padding-top:10px;margin-top:6px">
+          <span class="label" style="font-weight:700">Current Stock</span>
+          <span class="value" style="font-size:18px">${current.toFixed(1)}</span>
+        </div>
+        <div class="inv-row"><span class="label">Minimum Stock</span><span class="value">${Number(item.minimum_stock || 0).toFixed(1)}</span></div>
+        <div class="inv-row"><span class="label">Avg Price</span><span class="value">${Number(item.avg_unit_price || 0).toFixed(4)}</span></div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  content.innerHTML = html;
+}
+
+// ============================================================
+// PARTS INVENTORY DASHBOARD
+// ============================================================
+async function showPartsInventoryDashboard(key) {
+  const content = document.getElementById('content');
+  const { data: inv } = await sb.from('parts_inventory').select('*');
+  const { data: intake } = await sb.from('parts_intake').select('part_id,intake_quantity');
+  const { data: movements } = await sb.from('parts_movements').select('part_id,quantity');
+  const { data: output } = await sb.from('parts_output').select('part_id,actual_output_quantity');
+
+  let html = `<div class="section-header">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <h3>Parts Inventory</h3>
+  </div><div class="form-container">`;
+
+  const byClass = { A: [], B: [], C: [] };
+  for (const item of (inv || [])) {
+    const totalIn = (intake || []).filter(r => r.part_id === item.id).reduce((s,r) => s + (Number(r.intake_quantity) || 0), 0);
+    const totalOut = (output || []).filter(r => r.part_id === item.id).reduce((s,r) => s + (Number(r.actual_output_quantity) || 0), 0);
+    const moveAdj = (movements || []).filter(r => r.part_id === item.id).reduce((s,r) => s + (Number(r.quantity) || 0), 0);
+    const current = (Number(item.opening_stock) || 0) + totalIn + moveAdj - totalOut;
+    const row = { ...item, current_stock_calc: current };
+    (byClass[item.abc_class] || byClass.C).push(row);
+  }
+
+  for (const cls of ['A', 'B', 'C']) {
+    const items = byClass[cls];
+    if (!items || items.length === 0) continue;
+    const clsBadge = cls === 'A' ? 'abc-a' : cls === 'B' ? 'abc-b' : 'abc-c';
+    html += `<div class="group-header"><span class="group-icon">📦</span><div><div class="group-title">Class ${cls} (${items.length} items)</div></div></div><div class="dashboard">`;
+    for (const item of items) {
+      const current = item.current_stock_calc;
+      const status = current <= 0 ? 'out' : current <= (Number(item.minimum_stock) || 0) ? 'low' : 'ok';
+      const badgeClass = status === 'out' ? 'inv-out' : status === 'low' ? 'inv-low' : 'inv-ok';
+      const badgeText = status === 'out' ? 'OUT OF STOCK' : status === 'low' ? 'LOW' : 'OK';
+      html += `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:15px">${item.part_name}</strong>
+          <span>
+            <span class="inv-badge ${clsBadge}">${cls}</span>
+            <span class="inv-badge ${badgeClass}">${badgeText}</span>
+          </span>
+        </div>
+        <div class="inv-row"><span class="label">Code</span><span class="value">${item.part_code || '-'}</span></div>
+        <div class="inv-row"><span class="label">Location</span><span class="value">${[item.warehouse_zone, item.bin_location].filter(Boolean).join(' / ') || '-'}</span></div>
+        <div class="inv-row" style="border-top:2px solid #333;padding-top:10px;margin-top:6px">
+          <span class="label" style="font-weight:700">Current Stock</span>
+          <span class="value" style="font-size:18px">${current.toFixed(1)}</span>
+        </div>
+        <div class="inv-row"><span class="label">Minimum Stock</span><span class="value">${Number(item.minimum_stock || 0).toFixed(1)}</span></div>
+        <div class="inv-row"><span class="label">Avg Price</span><span class="value">${Number(item.avg_unit_price || 0).toFixed(4)}</span></div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  content.innerHTML = html;
+}
+
+// ============================================================
+// EQUIPMENT REPORT
+// ============================================================
+async function showEquipmentReport() {
+  const content = document.getElementById('content');
+  const { data: equipment } = await sb.from('equipment').select('*');
+  const { data: logs } = await sb.from('maintenance_logs').select('*');
+
+  let html = `<div class="section-header">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <h3>Equipment Report</h3>
+  </div><div class="form-container">`;
+
+  for (const eq of (equipment || [])) {
+    const eqLogs = (logs || []).filter(l => l.equipment_id === eq.id);
+    const totalCost = eqLogs.reduce((s,l) => s + (Number(l.cost) || 0), 0);
+    const totalDowntime = eqLogs.reduce((s,l) => s + (Number(l.downtime_hours) || 0), 0);
+    const openCount = eqLogs.filter(l => l.status === 'Open' || l.status === 'In Progress').length;
+
+    html += `<div class="card">
+      <div style="margin-bottom:12px"><strong style="font-size:16px">${eq.equipment_name}</strong>
+        <span style="color:#666;font-size:13px"> (${eq.equipment_code})</span></div>
+      <div class="report-summary">
+        <div><div class="num">${eqLogs.length}</div><div class="lbl">Total Repairs</div></div>
+        <div><div class="num">${openCount}</div><div class="lbl">Open</div></div>
+        <div><div class="num">${totalCost.toFixed(0)}</div><div class="lbl">Total Cost</div></div>
+        <div><div class="num">${totalDowntime.toFixed(1)}</div><div class="lbl">Downtime (h)</div></div>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+  content.innerHTML = html;
+}
+  // USER MANAGEMENT (三态权限 + 三态下拉)
 // ============================================================
 async function showUserManagement() {
   const content = document.getElementById('content');
