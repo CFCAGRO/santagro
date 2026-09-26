@@ -353,7 +353,7 @@ const TABLES = {
     defaultSort: { column: "intake_date", ascending: false },
     fields: [
       {col:"input_id",label:"Input Item",type:"link",table:"inputs_inventory",showField:"input_name",onchange:"autoFillIntakePreview",required:true,section:"1. Item"},
-      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly",previewOnly:true},,
       {col:"current_avg_preview",label:"Current System Avg Price (auto)",type:"number",readonly:true,previewOnly:true},
       {col:"intake_quantity",label:"Intake Quantity",type:"number",required:true,recalc:"intake"},
       {col:"unit_price",label:"Unit Price",type:"number",required:true,allowZero:true,recalc:"intake"},
@@ -382,7 +382,7 @@ const TABLES = {
       {col:"exit_number",label:"Exit Number (auto)",type:"text",readonly:true,previewOnly:true,section:"1. Exit Info"},
       {col:"work_order_id",label:"Work Order (select first)",type:"link",table:"work_orders",showField:"task_number",onchange:"filterOutputInputs",required:true,section:"2. Item & Work Order"},
       {col:"input_id",label:"Input Item (only planned for this WO)",type:"link",table:"inputs_inventory",showField:"input_name",onchange:"autoFillInputUnit",required:true},
-      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly",previewOnly:true},,
       {col:"system_unit_price",label:"System Unit Price (auto, locked)",type:"number",readonly:true,previewOnly:true,section:"3. Output Details"},
       {col:"output_type",label:"Output Type",type:"lookup",lookupCategory:"output_type",required:true},
       {col:"output_date",label:"Output Date",type:"date",required:true},
@@ -399,7 +399,7 @@ const TABLES = {
     defaultSort: { column: "movement_date", ascending: false },
     fields: [
       {col:"input_id",label:"Input Item",type:"link",table:"inputs_inventory",showField:"input_name",onchange:"autoFillInputUnit",required:true,section:"1. Item"},
-      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from item)",type:"linkedreadonly",previewOnly:true},,
       {col:"movement_type",label:"Movement Type",type:"lookup",lookupCategory:"movement_type",required:true},
       {col:"quantity",label:"Quantity (+ adds, − subtracts)",type:"number",required:true,allowZero:true},
       {col:"movement_date",label:"Movement Date",type:"date",required:true,section:"2. Details"},
@@ -512,7 +512,7 @@ const TABLES = {
     defaultSort: { column: "intake_date", ascending: false },
     fields: [
       {col:"part_id",label:"Part",type:"link",table:"parts_inventory",showField:"part_name",onchange:"autoFillPartsIntakePreview",required:true,section:"1. Part"},
-      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly",previewOnly:true},,
       {col:"current_avg_preview",label:"Current Avg Price (auto)",type:"number",readonly:true,previewOnly:true},
       {col:"intake_quantity",label:"Intake Quantity",type:"number",required:true,recalc:"partsIntake"},
       {col:"unit_price",label:"Unit Price",type:"number",required:true,allowZero:true,recalc:"partsIntake"},
@@ -541,8 +541,8 @@ const TABLES = {
     fields: [
       {col:"exit_number",label:"Exit Number (auto)",type:"text",readonly:true,previewOnly:true,section:"1. Exit Info"},
       {col:"part_id",label:"Part",type:"link",table:"parts_inventory",showField:"part_name",onchange:"autoFillPartsOutput",required:true,section:"2. Part & Destination"},
-      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly"},
-      {col:"location_display",label:"Location (from Parts Master)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly",previewOnly:true},,
+      {col:"location_display",label:"Location (from Parts Master)",type:"linkedreadonly",previewOnly:true},,
       {col:"maintenance_log_id",label:"Maintenance Log (optional)",type:"link",table:"maintenance_logs",showField:"id"},
       {col:"work_order_id",label:"Work Order (optional)",type:"link",table:"work_orders",showField:"task_number"},
       {col:"system_unit_price",label:"System Unit Price (auto, locked)",type:"number",readonly:true,previewOnly:true,section:"3. Output Details"},
@@ -561,7 +561,7 @@ const TABLES = {
     defaultSort: { column: "movement_date", ascending: false },
     fields: [
       {col:"part_id",label:"Part",type:"link",table:"parts_inventory",showField:"part_name",onchange:"autoFillPartsOutput",required:true,section:"1. Part"},
-      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly"},
+      {col:"unit_display",label:"Unit (auto from part)",type:"linkedreadonly",previewOnly:true},,
       {col:"warehouse_zone",label:"Warehouse Zone",type:"lookup",lookupCategory:"warehouse_zone",section:"2. Location"},
       {col:"bin_location",label:"Bin Location (e.g. 03-02)",type:"text"},
       {col:"movement_type",label:"Movement Type",type:"lookup",lookupCategory:"movement_type",required:true,section:"3. Movement"},
